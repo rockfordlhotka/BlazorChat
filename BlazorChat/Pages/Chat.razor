@@ -2,7 +2,7 @@
 
 @using Microsoft.AspNetCore.Components.Server.Circuits
 
-@inject CircuitHandler circuitHandlerService
+@inject CircuitHandler circuitService
 @inject ViewModel<User> vm
 
 <h3>Chat</h3>
@@ -17,7 +17,8 @@ else
 {
   <p>@vm.Model.Id</p>
   <p>@vm.Model.Name</p>
-  <p>Active: @(((Services.CircuitHandlerService)circuitHandlerService).Circuits.Count)</p>
+  <p>Id: @sessionId</p>
+  <p>Active: @(myCircuit?.Count)</p>
   <p>
     <textarea rows="20" cols="80">@messageList</textarea>
   </p>
@@ -27,42 +28,77 @@ else
 }
 
 @code {
-  [Parameter]
-  public string id { get; set; }
+    [Parameter]
+    public string id { get; set; }
   private string messageText;
   private string messageList;
   private System.Timers.Timer timer;
+  public string sessionId { get; set; }
+  private BlazorChat.Services.CircuitSessionService myCircuit;
 
   protected override void OnInitialized()
   {
-    App.Messages.CollectionChanged += (s, e) => InvokeAsync(() => ShowMessages());
-    timer = new System.Timers.Timer(3000);
-    timer.Elapsed += async (s, e) =>
-    {
-      var sm = DataPortal.Create<SendChat>(vm.Model, DateTime.Now.Ticks.ToString());
-      messageText = "";
-      await DataPortal.ExecuteAsync(sm);
-    };
   }
 
   protected override async Task OnParametersSetAsync()
   {
+    App.Messages.CollectionChanged += InvokeShowMessages;
     await vm.RefreshAsync(() => Csla.DataPortal.CreateAsync<User>(id));
-    timer.AutoReset = true;
-    timer.Enabled = true;
+    myCircuit = ((Services.CircuitSessionService)circuitService);
+    myCircuit.CircuitActive += (i, a) =>
+    {
+      if (a)
+      {
+        InitializeCircuit(i);
+      }
+      else
+      {
+        App.Messages.CollectionChanged -= InvokeShowMessages;
+        timer?.Stop();
+        timer = new System.Timers.Timer();
+        SendMessage("Goodbye");
+      }
+    };
+    InitializeCircuit(myCircuit.SessionId);
   }
 
-  private async void SendMessage()
+  private void InitializeCircuit(string id)
   {
-    var sm = DataPortal.Create<SendChat>(vm.Model, messageText);
+    if (!string.IsNullOrWhiteSpace(id))
+    {
+      sessionId = id;
+      timer?.Stop();
+      timer = new System.Timers.Timer(3000);
+      timer.Elapsed += (s, e) => SendMessage(DateTime.Now.Ticks.ToString());
+      timer.AutoReset = true;
+      timer.Enabled = true;
+    }
+  }
+
+  private void SendMessage()
+  {
+    SendMessage(messageText);
     messageText = "";
+  }
+
+  private async void SendMessage(string text)
+  {
+    var id = myCircuit?.SessionId;
+    var sm = DataPortal.Create<SendChat>(vm.Model, $"({id}) {text}");
     await DataPortal.ExecuteAsync(sm);
+  }
+
+  private void InvokeShowMessages(object sender, EventArgs e)
+  {
+    InvokeAsync(() => ShowMessages());
   }
 
   private void ShowMessages()
   {
     var sb = new System.Text.StringBuilder();
-    var items = App.Messages.TakeLast(20);
+    List<string> items;
+    lock (App.Messages)
+      items = App.Messages.TakeLast(20).ToList();
     foreach (var item in items)
     {
       sb.Append(item);

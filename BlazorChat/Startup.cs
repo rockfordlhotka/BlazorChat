@@ -31,7 +31,7 @@ namespace BlazorChat
     {
       services.AddRazorPages();
       services.AddServerSideBlazor();
-      services.AddSingleton<CircuitHandler>(new CircuitHandlerService());
+      services.AddScoped<CircuitHandler, CircuitSessionService>();
       services.AddSingleton<WeatherForecastService>();
       services.AddCsla().WithBlazorServerSupport();
     }

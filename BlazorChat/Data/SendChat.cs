@@ -35,7 +35,7 @@ namespace BlazorChat.Data
       lock (App.Messages)
       {
         App.Messages.Add(text);
-        if (App.Messages.Count > 20)
+        while (App.Messages.Count > 20)
           App.Messages.RemoveAt(0);
       }
     }
