@@ -1,0 +1,74 @@
+﻿@page "/chat/{id}"
+
+@using Microsoft.AspNetCore.Components.Server.Circuits
+
+@inject CircuitHandler circuitHandlerService
+@inject ViewModel<User> vm
+
+<h3>Chat</h3>
+
+<div class="alert-danger">@vm.ViewModelErrorText</div>
+
+@if (vm.Model == null)
+{
+  <p>Loading...</p>
+}
+else
+{
+  <p>@vm.Model.Id</p>
+  <p>@vm.Model.Name</p>
+  <p>Active: @(((Services.CircuitHandlerService)circuitHandlerService).Circuits.Count)</p>
+  <p>
+    <textarea rows="20" cols="80">@messageList</textarea>
+  </p>
+  <br />
+  <input type="text" @bind-value="messageText" />
+  <input type="button" @onclick="SendMessage" value="Send" />
+}
+
+@code {
+  [Parameter]
+  public string id { get; set; }
+  private string messageText;
+  private string messageList;
+  private System.Timers.Timer timer;
+
+  protected override void OnInitialized()
+  {
+    App.Messages.CollectionChanged += (s, e) => InvokeAsync(() => ShowMessages());
+    timer = new System.Timers.Timer(3000);
+    timer.Elapsed += async (s, e) =>
+    {
+      var sm = DataPortal.Create<SendChat>(vm.Model, DateTime.Now.Ticks.ToString());
+      messageText = "";
+      await DataPortal.ExecuteAsync(sm);
+    };
+  }
+
+  protected override async Task OnParametersSetAsync()
+  {
+    await vm.RefreshAsync(() => Csla.DataPortal.CreateAsync<User>(id));
+    timer.AutoReset = true;
+    timer.Enabled = true;
+  }
+
+  private async void SendMessage()
+  {
+    var sm = DataPortal.Create<SendChat>(vm.Model, messageText);
+    messageText = "";
+    await DataPortal.ExecuteAsync(sm);
+  }
+
+  private void ShowMessages()
+  {
+    var sb = new System.Text.StringBuilder();
+    var items = App.Messages.TakeLast(20);
+    foreach (var item in items)
+    {
+      sb.Append(item);
+      sb.Append(Environment.NewLine);
+    }
+    messageList = sb.ToString();
+    StateHasChanged();
+  }
+}
