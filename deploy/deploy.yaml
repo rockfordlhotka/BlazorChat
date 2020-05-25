@@ -1,0 +1,20 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: blazorchat-deploy
+  labels:
+    app: blazorchat
+spec:
+  selector:
+    matchLabels:
+      app: blazorchat
+  template:
+    metadata:
+      labels:
+        app: blazorchat
+    spec:
+      containers:
+      - name: nginx
+        image: localhost:32000/blazorchat:v1
+        ports:
+        - containerPort: 80
